@@ -59,7 +59,62 @@ button,input{font:inherit}
   position:absolute;left:50%;top:0;width:760px;height:240px;
   transform:translateX(-50%) scale(.432);transform-origin:top center
 }
-.embed-scale iframe{width:760px;height:240px;border:0;display:block;pointer-events:none}
+.embed-scale iframe{width:760px;height:240px;border:0;display:block}
+.native-play-cover{
+  position:absolute;
+  z-index:3;
+  left:90px;
+  top:44px;
+  width:30px;
+  height:30px;
+  border-radius:999px;
+  background:var(--accent);
+  color:#fff;
+  display:grid;
+  place-items:center;
+  pointer-events:none;
+  box-shadow:0 0 0 2px rgba(17,24,39,.65)
+}
+.native-play-cover::before{
+  content:"";
+  width:0;
+  height:0;
+  border-top:5px solid transparent;
+  border-bottom:5px solid transparent;
+  border-left:8px solid #fff;
+  margin-left:2px
+}
+.native-play-cover.is-playing::before{
+  width:3px;
+  height:11px;
+  border:0;
+  background:#fff;
+  box-shadow:5px 0 0 #fff;
+  margin-left:-5px
+}
+
+/* Bloqueia o resto do iframe. Só a zona do Play/Pause real do Suno fica clicável. */
+.embed-blocker{
+  position:absolute;
+  z-index:2;
+  background:transparent;
+  pointer-events:auto
+}
+.embed-blocker.top{left:0;right:0;top:0;height:42px}
+.embed-blocker.bottom{left:0;right:0;top:76px;bottom:0}
+.embed-blocker.left{left:0;top:42px;width:88px;height:34px}
+.embed-blocker.right{left:122px;right:0;top:42px;height:34px}
+
+/* Recebe foco novamente depois de cada clique no iframe, permitindo detetar o clique seguinte. */
+.focus-sink{
+  position:fixed;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none;
+  left:-9999px;
+  top:-9999px
+}
 .nav{
   display:grid;grid-template-columns:34px 34px 34px 34px 1fr auto;
   align-items:center;gap:6px;padding:8px 9px;border-top:1px solid var(--line)
@@ -117,11 +172,19 @@ button,input{font:inherit}
   <section class="player" aria-label="Mini-player Suno">
     <div class="embed-shell">
       <div class="embed-scale" id="embedContainer"></div>
+
+      <div class="embed-blocker top" aria-hidden="true"></div>
+      <div class="embed-blocker bottom" aria-hidden="true"></div>
+      <div class="embed-blocker left" aria-hidden="true"></div>
+      <div class="embed-blocker right" aria-hidden="true"></div>
+
+      <div class="native-play-cover" id="nativePlayCover" aria-hidden="true"></div>
     </div>
+    <button class="focus-sink" id="focusSink" type="button" tabindex="-1" aria-hidden="true"></button>
 
     <div class="nav">
       <button id="prev" type="button" aria-label="Faixa anterior" title="Anterior">⏮</button>
-      <button id="playPause" type="button" aria-label="Pausar" title="Pausar">❚❚</button>
+      <button id="stop" type="button" aria-label="Parar" title="Parar">■</button>
       <button id="random" type="button" aria-label="Escolher faixa aleatória" title="Faixa aleatória">🔀</button>
       <button id="next" type="button" aria-label="Faixa seguinte" title="Seguinte">⏭</button>
       <span class="counter" id="counter">—</span>
@@ -141,8 +204,10 @@ button,input{font:inherit}
 
   const embedShell=document.querySelector(".embed-shell"),
         embedContainer=document.getElementById("embedContainer"),
+        nativePlayCover=document.getElementById("nativePlayCover"),
+        focusSink=document.getElementById("focusSink"),
         prev=document.getElementById("prev"),
-        playPause=document.getElementById("playPause"),
+        stop=document.getElementById("stop"),
         random=document.getElementById("random"),
         next=document.getElementById("next"),
         counter=document.getElementById("counter"),
@@ -157,7 +222,7 @@ button,input{font:inherit}
         installBtn=document.getElementById("installBtn");
 
   let playlistId=localStorage.getItem("suno-playlist-id")||DEFAULT_PLAYLIST_ID;
-  let tracks=[],current=0,deferredPrompt=null,paused=false;
+  let tracks=[],current=0,deferredPrompt=null,stopped=false,sunoPlaying=false;
 
   const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -178,6 +243,10 @@ button,input{font:inherit}
     showMode.timer=setTimeout(()=>modeTip.classList.remove("show"),1600);
   }
 
+  function updateNativePlayVisual(){
+    nativePlayCover.classList.toggle("is-playing",sunoPlaying);
+  }
+
   function renderList(){
     list.innerHTML=tracks.map((t,i)=>`
       <button class="track ${i===current?"active":""}" type="button" data-i="${i}">
@@ -189,7 +258,8 @@ button,input{font:inherit}
   function renderEmbed(autoplay=false){
     if(!tracks.length)return;
     const t=tracks[current];
-    paused=false;
+    stopped=false;
+    sunoPlaying=Boolean(autoplay);
     counter.textContent=`${current+1} / ${tracks.length}`;
     const q=autoplay?"?auto_play=true&autoplay=1":"";
     embedContainer.innerHTML=`
@@ -205,32 +275,32 @@ button,input{font:inherit}
         referrerpolicy="no-referrer-when-downgrade">
       </iframe>`;
     embedShell.classList.remove("stopped");
-    playPause.textContent="❚❚";
-    playPause.setAttribute("aria-label","Pausar");
-    playPause.title="Pausar";
+    nativePlayCover.style.display="grid";
+    updateNativePlayVisual();
+    stop.textContent="■";
+    stop.setAttribute("aria-label","Parar");
+    stop.title="Parar";
     renderList();
   }
 
-  function pauseCurrent(){
+  function stopCurrent(){
     if(!tracks.length)return;
-    paused=true;
-
-    // O iframe é removido para garantir que o áudio para.
-    // Devido ao isolamento cross-origin do Suno, isto reinicia a faixa
-    // quando voltamos a carregar em Play; não preserva a posição.
+    stopped=true;
+    sunoPlaying=false;
     embedContainer.innerHTML="";
+    nativePlayCover.style.display="none";
+    updateNativePlayVisual();
     embedShell.classList.add("stopped");
-
-    playPause.textContent="▶";
-    playPause.setAttribute("aria-label","Reproduzir");
-    playPause.title="Reproduzir";
+    stop.textContent="▶";
+    stop.setAttribute("aria-label","Reproduzir");
+    stop.title="Reproduzir";
   }
 
-  function togglePlayPause(){
-    if(paused){
+  function toggleStopPlay(){
+    if(stopped){
       renderEmbed(true);
     }else{
-      pauseCurrent();
+      stopCurrent();
     }
   }
 
@@ -256,20 +326,32 @@ button,input{font:inherit}
       tracks=data.tracks||[];
       if(!tracks.length)throw new Error("A playlist não devolveu faixas.");
       loadTrack(0,false);
-      // O primeiro carregamento não tem autoplay, portanto mostramos Play.
-      paused=true;
-      embedContainer.innerHTML="";
-      embedShell.classList.add("stopped");
-      playPause.textContent="▶";
-      playPause.setAttribute("aria-label","Reproduzir");
-      playPause.title="Reproduzir";
     }catch(err){
       counter.textContent="—";showError(String(err.message||err));
     }
   }
 
+  window.addEventListener("blur",()=>{
+    if(stopped)return;
+
+    setTimeout(()=>{
+      const iframe=embedContainer.querySelector("iframe");
+
+      if(iframe && document.activeElement===iframe){
+        sunoPlaying=!sunoPlaying;
+        updateNativePlayVisual();
+
+        // Devolve o foco ao documento exterior para que o próximo clique
+        // no Play/Pause do iframe volte a poder ser detetado.
+        setTimeout(()=>{
+          try{focusSink.focus({preventScroll:true})}catch(e){focusSink.focus()}
+        },40);
+      }
+    },0);
+  });
+
   prev.addEventListener("click",()=>loadTrack(current-1,true));
-  playPause.addEventListener("click",togglePlayPause);
+  stop.addEventListener("click",toggleStopPlay);
   next.addEventListener("click",()=>loadTrack(current+1,true));
   random.addEventListener("click",()=>{
     loadTrack(randomIndex(),true);
