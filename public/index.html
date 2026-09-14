@@ -51,8 +51,10 @@ button,input{font:inherit}
   border-radius:15px;overflow:hidden;box-shadow:0 10px 28px rgba(0,0,0,.16)
 }
 .embed-shell{
-  width:100%;height:104px;overflow:hidden;position:relative;background:#0c131f
+  width:100%;height:104px;overflow:hidden;position:relative;background:#0c131f;
+  transition:height .16s ease
 }
+.embed-shell.stopped{height:0}
 .embed-scale{
   position:absolute;left:50%;top:0;width:760px;height:240px;
   transform:translateX(-50%) scale(.432);transform-origin:top center
@@ -89,36 +91,6 @@ button,input{font:inherit}
   box-shadow:4px 0 0 #fff;
   margin-left:8px
 }
-.resume-button{
-  position:absolute;
-  z-index:4;
-  left:115px;
-  top:44px;
-  width:30px;
-  height:30px;
-  border-radius:999px;
-  border:1px solid var(--accent);
-  background:var(--accent);
-  color:#fff;
-  display:none;
-  place-items:center;
-  font-size:13px;
-  font-weight:900;
-  cursor:pointer;
-}
-.resume-button.show{display:grid}
-.stopped-note{
-  position:absolute;
-  z-index:2;
-  left:0;
-  right:0;
-  bottom:7px;
-  text-align:center;
-  font-size:10px;
-  color:var(--muted);
-  display:none
-}
-.stopped-note.show{display:block}
 .nav{
   display:grid;grid-template-columns:34px 34px 34px 34px 1fr auto;
   align-items:center;gap:6px;padding:8px 9px;border-top:1px solid var(--line)
@@ -177,8 +149,6 @@ button,input{font:inherit}
     <div class="embed-shell">
       <div class="embed-scale" id="embedContainer"></div>
       <div class="native-play-cover" id="nativePlayCover" aria-hidden="true"></div>
-      <button class="resume-button" id="resumeButton" type="button" aria-label="Reproduzir">▶</button>
-      <div class="stopped-note" id="stoppedNote">Parado</div>
     </div>
 
     <div class="nav">
@@ -201,10 +171,9 @@ button,input{font:inherit}
   const DEFAULT_PLAYLIST_ID="e88dd6af-edc2-49b4-94ba-d726c879540d";
   const UUID_RE=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-  const embedContainer=document.getElementById("embedContainer"),
+  const embedShell=document.querySelector(".embed-shell"),
+        embedContainer=document.getElementById("embedContainer"),
         nativePlayCover=document.getElementById("nativePlayCover"),
-        resumeButton=document.getElementById("resumeButton"),
-        stoppedNote=document.getElementById("stoppedNote"),
         prev=document.getElementById("prev"),
         stop=document.getElementById("stop"),
         random=document.getElementById("random"),
@@ -268,9 +237,11 @@ button,input{font:inherit}
         loading="eager"
         referrerpolicy="no-referrer-when-downgrade">
       </iframe>`;
+    embedShell.classList.remove("stopped");
     nativePlayCover.style.display="grid";
-    resumeButton.classList.remove("show");
-    stoppedNote.classList.remove("show");
+    stop.textContent="■";
+    stop.setAttribute("aria-label","Parar");
+    stop.title="Parar";
     renderList();
   }
 
@@ -279,8 +250,18 @@ button,input{font:inherit}
     stopped=true;
     embedContainer.innerHTML="";
     nativePlayCover.style.display="none";
-    resumeButton.classList.add("show");
-    stoppedNote.classList.add("show");
+    embedShell.classList.add("stopped");
+    stop.textContent="▶";
+    stop.setAttribute("aria-label","Reproduzir");
+    stop.title="Reproduzir";
+  }
+
+  function toggleStopPlay(){
+    if(stopped){
+      renderEmbed(true);
+    }else{
+      stopCurrent();
+    }
   }
 
   function loadTrack(index,autoplay=true){
@@ -311,8 +292,7 @@ button,input{font:inherit}
   }
 
   prev.addEventListener("click",()=>loadTrack(current-1,true));
-  stop.addEventListener("click",stopCurrent);
-  resumeButton.addEventListener("click",()=>renderEmbed(true));
+  stop.addEventListener("click",toggleStopPlay);
   next.addEventListener("click",()=>loadTrack(current+1,true));
   random.addEventListener("click",()=>{
     loadTrack(randomIndex(),true);
