@@ -23,11 +23,8 @@ exports.handler = async (event) => {
   if (!PLAYLIST_RE.test(id)) {
     return {
       statusCode: 400,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store"
-      },
-      body: JSON.stringify({ error: "ID de playlist inválido." })
+      headers: {"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"},
+      body: JSON.stringify({error:"ID de playlist inválido."})
     };
   }
 
@@ -40,40 +37,28 @@ exports.handler = async (event) => {
 
       const response = await fetch(`${base}/api/playlist/${id}/`, {
         signal: controller.signal,
-        headers: {
-          "Accept": "application/json",
-          "User-Agent": "Mozilla/5.0 Suno-Playlist-PWA/1.0"
-        }
+        headers: {"Accept":"application/json","User-Agent":"Mozilla/5.0 Suno-Playlist-PWA/2.0"}
       });
 
       clearTimeout(timer);
-
-      if (!response.ok) {
-        throw new Error(`${base}: HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`${base}: HTTP ${response.status}`);
 
       const data = await response.json();
       const rows = Array.isArray(data.playlist_clips) ? data.playlist_clips : [];
-
       const seen = new Set();
       const tracks = rows
         .map(normalizeClip)
         .filter(Boolean)
         .filter(track => !seen.has(track.id) && seen.add(track.id));
 
-      if (!tracks.length) {
-        throw new Error(`${base}: playlist sem faixas disponíveis`);
-      }
+      if (!tracks.length) throw new Error(`${base}: playlist sem faixas disponíveis`);
 
       return {
         statusCode: 200,
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Cache-Control": "public, max-age=60, s-maxage=300"
-        },
+        headers: {"Content-Type":"application/json; charset=utf-8","Cache-Control":"public, max-age=60, s-maxage=300"},
         body: JSON.stringify({
-          playlist_id: id,
-          title: data.name || data.title || "Playlist Suno",
+          playlist_id:id,
+          title:data.name || data.title || "Playlist Suno",
           tracks
         })
       };
@@ -84,13 +69,10 @@ exports.handler = async (event) => {
 
   return {
     statusCode: 502,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store"
-    },
+    headers: {"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"},
     body: JSON.stringify({
-      error: "Não foi possível carregar a playlist do Suno.",
-      detail: String((lastError && lastError.message) || lastError || "Erro desconhecido")
+      error:"Não foi possível carregar a playlist do Suno.",
+      detail:String((lastError && lastError.message) || lastError || "Erro desconhecido")
     })
   };
 };
