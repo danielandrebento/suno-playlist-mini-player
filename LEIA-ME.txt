@@ -1,0 +1,57 @@
+SUNO PLAYLIST MINI-PLAYER — NETLIFY + PWA
+
+OBJETIVO
+- Não exige executar servidor no computador.
+- O frontend fica público no Netlify.
+- A Netlify Function consulta a playlist pública do Suno.
+- Cada música é reproduzida pelo embed oficial do Suno.
+- A aplicação pode ser instalada como PWA em Windows e Android.
+
+PLAYLIST PREDEFINIDA
+https://suno.com/playlist/e88dd6af-edc2-49b4-94ba-d726c879540d
+
+Também é possível mudar a playlist pelo botão "Playlist".
+A escolha fica guardada no dispositivo.
+
+ESTRUTURA
+public/
+  index.html
+  manifest.webmanifest
+  service-worker.js
+  icons/
+netlify/functions/
+  playlist.js
+netlify.toml
+package.json
+
+PUBLICAR NO NETLIFY — RECOMENDADO
+1. Cria um repositório GitHub/GitLab com estes ficheiros.
+2. No Netlify, cria um novo site a partir desse repositório.
+3. O netlify.toml já define:
+   - pasta pública: public
+   - Functions: netlify/functions
+4. Não são necessárias variáveis de ambiente.
+5. Publica.
+
+Também podes usar a Netlify CLI:
+  npm install -g netlify-cli
+  netlify login
+  netlify deploy
+  netlify deploy --prod
+
+IMPORTANTE
+- O site precisa de HTTPS para instalação PWA fora de localhost. O Netlify fornece HTTPS.
+- A Function é necessária; publicar só a pasta public não chega.
+- Não é necessário qualquer login ou API key do Suno nesta versão.
+- O player usa apenas dados públicos da playlist.
+
+LIMITAÇÃO DO EMBED SUNO
+O áudio toca dentro de um iframe de suno.com.
+Por segurança do browser, esta aplicação não recebe o evento "a música terminou".
+Por isso:
+- Anterior/Seguinte funcionam;
+- seleção de faixas funciona;
+- Aleatório altera o comportamento do botão Seguinte;
+- Repetir reinicia a faixa quando usas Seguinte;
+- passagem automática para a próxima faixa e repeat automático ao fim da música
+  não podem ser implementados de forma fiável apenas com o embed atual do Suno.

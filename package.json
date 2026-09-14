@@ -1,0 +1,9 @@
+{
+  "name": "suno-playlist-mini-player",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Netlify + PWA mini-player para playlists Suno.",
+  "engines": {
+    "node": ">=18"
+  }
+}
