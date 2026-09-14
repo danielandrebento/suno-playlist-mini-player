@@ -58,8 +58,55 @@ button,input{font:inherit}
   transform:translateX(-50%) scale(.432);transform-origin:top center
 }
 .embed-scale iframe{width:760px;height:240px;border:0;display:block}
+.native-play-cover{
+  position:absolute;
+  z-index:3;
+  left:105px;
+  top:55px;
+  width:30px;
+  height:30px;
+  border-radius:999px;
+  background:var(--accent);
+  color:#fff;
+  display:grid;
+  place-items:center;
+  font-size:13px;
+  font-weight:900;
+  pointer-events:none;
+  box-shadow:0 0 0 2px rgba(17,24,39,.65)
+}
+.resume-button{
+  position:absolute;
+  z-index:4;
+  left:105px;
+  top:55px;
+  width:30px;
+  height:30px;
+  border-radius:999px;
+  border:1px solid var(--accent);
+  background:var(--accent);
+  color:#fff;
+  display:none;
+  place-items:center;
+  font-size:13px;
+  font-weight:900;
+  cursor:pointer;
+}
+.resume-button.show{display:grid}
+.stopped-note{
+  position:absolute;
+  z-index:2;
+  left:0;
+  right:0;
+  bottom:7px;
+  text-align:center;
+  font-size:10px;
+  color:var(--muted);
+  display:none
+}
+.stopped-note.show{display:block}
 .nav{
-  display:grid;grid-template-columns:34px 34px 34px 1fr auto;
+  display:grid;grid-template-columns:34px 34px 34px 34px 1fr auto;
   align-items:center;gap:6px;padding:8px 9px;border-top:1px solid var(--line)
 }
 .nav button{
@@ -91,7 +138,7 @@ button,input{font:inherit}
 
 @media(max-width:360px){
   body{padding:8px}.app{width:100%}
-  .nav{grid-template-columns:32px 32px 32px 1fr auto;gap:5px}
+  .nav{grid-template-columns:32px 32px 32px 32px 1fr auto;gap:5px}
   .nav button{height:32px;min-width:32px}
 }
 </style>
@@ -115,10 +162,14 @@ button,input{font:inherit}
   <section class="player" aria-label="Mini-player Suno">
     <div class="embed-shell">
       <div class="embed-scale" id="embedContainer"></div>
+      <div class="native-play-cover" id="nativePlayCover" aria-hidden="true">⏯</div>
+      <button class="resume-button" id="resumeButton" type="button" aria-label="Reproduzir">▶</button>
+      <div class="stopped-note" id="stoppedNote">Parado</div>
     </div>
 
     <div class="nav">
       <button id="prev" type="button" aria-label="Faixa anterior" title="Anterior">⏮</button>
+      <button id="stop" type="button" aria-label="Parar" title="Parar">■</button>
       <button id="random" type="button" aria-label="Escolher faixa aleatória" title="Faixa aleatória">🔀</button>
       <button id="next" type="button" aria-label="Faixa seguinte" title="Seguinte">⏭</button>
       <span class="counter" id="counter">—</span>
@@ -137,7 +188,11 @@ button,input{font:inherit}
   const UUID_RE=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
   const embedContainer=document.getElementById("embedContainer"),
+        nativePlayCover=document.getElementById("nativePlayCover"),
+        resumeButton=document.getElementById("resumeButton"),
+        stoppedNote=document.getElementById("stoppedNote"),
         prev=document.getElementById("prev"),
+        stop=document.getElementById("stop"),
         random=document.getElementById("random"),
         next=document.getElementById("next"),
         counter=document.getElementById("counter"),
@@ -152,7 +207,7 @@ button,input{font:inherit}
         installBtn=document.getElementById("installBtn");
 
   let playlistId=localStorage.getItem("suno-playlist-id")||DEFAULT_PLAYLIST_ID;
-  let tracks=[],current=0,deferredPrompt=null;
+  let tracks=[],current=0,deferredPrompt=null,stopped=false;
 
   const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -184,6 +239,7 @@ button,input{font:inherit}
   function renderEmbed(autoplay=false){
     if(!tracks.length)return;
     const t=tracks[current];
+    stopped=false;
     counter.textContent=`${current+1} / ${tracks.length}`;
     const q=autoplay?"?auto_play=true&autoplay=1":"";
     embedContainer.innerHTML=`
@@ -198,7 +254,19 @@ button,input{font:inherit}
         loading="eager"
         referrerpolicy="no-referrer-when-downgrade">
       </iframe>`;
+    nativePlayCover.style.display="grid";
+    resumeButton.classList.remove("show");
+    stoppedNote.classList.remove("show");
     renderList();
+  }
+
+  function stopCurrent(){
+    if(!tracks.length)return;
+    stopped=true;
+    embedContainer.innerHTML="";
+    nativePlayCover.style.display="none";
+    resumeButton.classList.add("show");
+    stoppedNote.classList.add("show");
   }
 
   function loadTrack(index,autoplay=true){
@@ -229,6 +297,8 @@ button,input{font:inherit}
   }
 
   prev.addEventListener("click",()=>loadTrack(current-1,true));
+  stop.addEventListener("click",stopCurrent);
+  resumeButton.addEventListener("click",()=>renderEmbed(true));
   next.addEventListener("click",()=>loadTrack(current+1,true));
   random.addEventListener("click",()=>{
     loadTrack(randomIndex(),true);

@@ -1,4 +1,4 @@
-const CACHE="suno-player-v3";
+const CACHE="suno-player-v4";
 const SHELL=[
   "/",
   "/index.html",
