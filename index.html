@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="Mini-player compacto para playlists públicas do Suno.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<title>Suno Playlist Mini-Player</title>
+<style>
+:root{
+  --bg:#111827;--panel:#172233;--panel2:#0d1623;--line:#2b3b4e;
+  --text:#f8fafc;--muted:#9fb0c3;--accent:#2f8fc7;--page:#f4f6f8;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  min-height:100vh;display:grid;place-items:center;padding:16px;
+  background:var(--page);font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif
+}
+button,input{font:inherit}
+.app{width:min(330px,100%)}
+.toolbar{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px}
+.toolbar button{
+  border:1px solid #ccd5df;background:#fff;color:#233142;border-radius:10px;
+  min-height:34px;padding:0 10px;cursor:pointer;font-weight:750;font-size:12px
+}
+.install{display:none}.install.show{display:inline-block}
+.settings{
+  display:none;margin-bottom:8px;padding:10px;background:#fff;border:1px solid #d8e0e8;
+  border-radius:12px;color:#233142;box-shadow:0 6px 22px rgba(0,0,0,.06)
+}
+.settings.open{display:block}
+.settings label{display:block;font-size:11px;font-weight:800;margin-bottom:5px}
+.settings-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.settings input{
+  width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:9px;padding:8px 9px;
+  background:#fff;color:#111827;font-size:12px
+}
+.settings button{
+  border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:9px;
+  padding:0 12px;font-weight:800;cursor:pointer
+}
+.settings small{display:block;margin-top:6px;color:#64748b;font-size:10px;line-height:1.35}
+
+.player{
+  width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);
+  border-radius:15px;overflow:hidden;box-shadow:0 10px 28px rgba(0,0,0,.16)
+}
+.embed-shell{
+  width:100%;height:104px;overflow:hidden;position:relative;background:#0c131f;
+  transition:height .16s ease
+}
+.embed-shell.stopped{height:0}
+.embed-scale{
+  position:absolute;left:50%;top:0;width:760px;height:240px;
+  transform:translateX(-50%) scale(.432);transform-origin:top center
+}
+.embed-scale iframe{width:760px;height:240px;border:0;display:block;pointer-events:none}
+.nav{
+  display:grid;grid-template-columns:34px 34px 34px 34px 1fr auto;
+  align-items:center;gap:6px;padding:8px 9px;border-top:1px solid var(--line)
+}
+.nav button{
+  border:1px solid var(--line);background:var(--panel);color:var(--text);
+  height:34px;min-width:34px;border-radius:999px;cursor:pointer;font-weight:850;line-height:1
+}
+.counter{text-align:center;font-size:11px;color:var(--muted);white-space:nowrap}
+.toggle{padding:0 9px;border-radius:9px!important;font-size:11px}
+.list{
+  display:none;max-height:230px;overflow:auto;background:var(--panel2);
+  border-top:1px solid var(--line)
+}
+.list.open{display:block}
+.track{
+  width:100%;border:0;border-bottom:1px solid rgba(255,255,255,.055);
+  background:transparent;color:var(--text);display:grid;
+  grid-template-columns:26px minmax(0,1fr);gap:7px;padding:8px 10px;text-align:left;cursor:pointer
+}
+.track:hover{background:rgba(255,255,255,.04)}
+.track.active{background:rgba(47,143,199,.15)}
+.track-num{color:var(--muted);font-size:10px;padding-top:2px}
+.track-title{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status,.mode-tip{
+  display:none;padding:9px 11px;color:var(--muted);border-top:1px solid var(--line);
+  font-size:11px;line-height:1.4
+}
+.status.show,.mode-tip.show{display:block}
+.status.error{color:#fecaca}.status a{color:#73c5f5}
+
+@media(max-width:360px){
+  body{padding:8px}.app{width:100%}
+  .nav{grid-template-columns:32px 32px 32px 32px 1fr auto;gap:5px}
+  .nav button{height:32px;min-width:32px}
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="toolbar">
+    <button id="installBtn" class="install" type="button">Instalar</button>
+    <button id="settingsBtn" type="button">Playlist</button>
+  </div>
+
+  <section class="settings" id="settings" aria-label="Configurar playlist">
+    <label for="playlistInput">URL ou ID da playlist Suno</label>
+    <div class="settings-row">
+      <input id="playlistInput" autocomplete="off">
+      <button id="applyPlaylist" type="button">Abrir</button>
+    </div>
+    <small>A playlist escolhida fica guardada apenas neste dispositivo.</small>
+  </section>
+
+  <section class="player" aria-label="Mini-player Suno">
+    <div class="embed-shell">
+      <div class="embed-scale" id="embedContainer"></div>
+    </div>
+
+    <div class="nav">
+      <button id="prev" type="button" aria-label="Faixa anterior" title="Anterior">⏮</button>
+      <button id="playPause" type="button" aria-label="Pausar" title="Pausar">❚❚</button>
+      <button id="random" type="button" aria-label="Escolher faixa aleatória" title="Faixa aleatória">🔀</button>
+      <button id="next" type="button" aria-label="Faixa seguinte" title="Seguinte">⏭</button>
+      <span class="counter" id="counter">—</span>
+      <button class="toggle" id="toggleList" type="button">Faixas</button>
+    </div>
+
+    <div class="mode-tip" id="modeTip"></div>
+    <div class="list" id="list"></div>
+    <div class="status" id="status"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const DEFAULT_PLAYLIST_ID="e88dd6af-edc2-49b4-94ba-d726c879540d";
+  const UUID_RE=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+  const embedShell=document.querySelector(".embed-shell"),
+        embedContainer=document.getElementById("embedContainer"),
+        prev=document.getElementById("prev"),
+        playPause=document.getElementById("playPause"),
+        random=document.getElementById("random"),
+        next=document.getElementById("next"),
+        counter=document.getElementById("counter"),
+        toggleList=document.getElementById("toggleList"),
+        list=document.getElementById("list"),
+        status=document.getElementById("status"),
+        modeTip=document.getElementById("modeTip"),
+        settings=document.getElementById("settings"),
+        settingsBtn=document.getElementById("settingsBtn"),
+        playlistInput=document.getElementById("playlistInput"),
+        applyPlaylist=document.getElementById("applyPlaylist"),
+        installBtn=document.getElementById("installBtn");
+
+  let playlistId=localStorage.getItem("suno-playlist-id")||DEFAULT_PLAYLIST_ID;
+  let tracks=[],current=0,deferredPrompt=null,paused=false;
+
+  const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+
+  function playlistUrl(){return `https://suno.com/playlist/${playlistId}`}
+
+  function showError(message){
+    status.className="status show error";
+    status.innerHTML=`${esc(message)}<br><a href="${playlistUrl()}" target="_blank" rel="noopener noreferrer">Abrir playlist no Suno</a>`;
+  }
+
+  function clearError(){status.className="status";status.textContent=""}
+
+  function showMode(text){
+    modeTip.textContent=text;modeTip.classList.add("show");
+    clearTimeout(showMode.timer);
+    showMode.timer=setTimeout(()=>modeTip.classList.remove("show"),1600);
+  }
+
+  function renderList(){
+    list.innerHTML=tracks.map((t,i)=>`
+      <button class="track ${i===current?"active":""}" type="button" data-i="${i}">
+        <span class="track-num">${String(i+1).padStart(2,"0")}</span>
+        <span class="track-title">${esc(t.title)}</span>
+      </button>`).join("");
+  }
+
+  function renderEmbed(autoplay=false){
+    if(!tracks.length)return;
+    const t=tracks[current];
+    paused=false;
+    counter.textContent=`${current+1} / ${tracks.length}`;
+    const q=autoplay?"?auto_play=true&autoplay=1":"";
+    embedContainer.innerHTML=`
+      <iframe
+        src="https://suno.com/embed/${encodeURIComponent(t.id)}${q}"
+        title="${esc(t.title)}"
+        width="760"
+        height="240"
+        frameborder="0"
+        allow="autoplay; encrypted-media; fullscreen"
+        allowfullscreen
+        loading="eager"
+        referrerpolicy="no-referrer-when-downgrade">
+      </iframe>`;
+    embedShell.classList.remove("stopped");
+    playPause.textContent="❚❚";
+    playPause.setAttribute("aria-label","Pausar");
+    playPause.title="Pausar";
+    renderList();
+  }
+
+  function pauseCurrent(){
+    if(!tracks.length)return;
+    paused=true;
+
+    // O iframe é removido para garantir que o áudio para.
+    // Devido ao isolamento cross-origin do Suno, isto reinicia a faixa
+    // quando voltamos a carregar em Play; não preserva a posição.
+    embedContainer.innerHTML="";
+    embedShell.classList.add("stopped");
+
+    playPause.textContent="▶";
+    playPause.setAttribute("aria-label","Reproduzir");
+    playPause.title="Reproduzir";
+  }
+
+  function togglePlayPause(){
+    if(paused){
+      renderEmbed(true);
+    }else{
+      pauseCurrent();
+    }
+  }
+
+  function loadTrack(index,autoplay=true){
+    if(!tracks.length)return;
+    current=(index+tracks.length)%tracks.length;
+    renderEmbed(autoplay);
+  }
+
+  function randomIndex(){
+    if(tracks.length<=1)return current;
+    let i=current;
+    while(i===current)i=Math.floor(Math.random()*tracks.length);
+    return i;
+  }
+
+  async function loadPlaylist(){
+    clearError();tracks=[];counter.textContent="…";embedContainer.innerHTML="";list.innerHTML="";
+    try{
+      const response=await fetch(`/api/playlist?id=${encodeURIComponent(playlistId)}`);
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.detail||data.error||`HTTP ${response.status}`);
+      tracks=data.tracks||[];
+      if(!tracks.length)throw new Error("A playlist não devolveu faixas.");
+      loadTrack(0,false);
+      // O primeiro carregamento não tem autoplay, portanto mostramos Play.
+      paused=true;
+      embedContainer.innerHTML="";
+      embedShell.classList.add("stopped");
+      playPause.textContent="▶";
+      playPause.setAttribute("aria-label","Reproduzir");
+      playPause.title="Reproduzir";
+    }catch(err){
+      counter.textContent="—";showError(String(err.message||err));
+    }
+  }
+
+  prev.addEventListener("click",()=>loadTrack(current-1,true));
+  playPause.addEventListener("click",togglePlayPause);
+  next.addEventListener("click",()=>loadTrack(current+1,true));
+  random.addEventListener("click",()=>{
+    loadTrack(randomIndex(),true);
+    showMode("Faixa aleatória.");
+  });
+
+  toggleList.addEventListener("click",()=>{
+    list.classList.toggle("open");
+    toggleList.textContent=list.classList.contains("open")?"Fechar":"Faixas";
+  });
+
+  list.addEventListener("click",e=>{
+    const button=e.target.closest("[data-i]");
+    if(button)loadTrack(Number(button.dataset.i),true);
+  });
+
+  settingsBtn.addEventListener("click",()=>{
+    settings.classList.toggle("open");
+    playlistInput.value=`https://suno.com/playlist/${playlistId}`;
+    if(settings.classList.contains("open"))playlistInput.focus();
+  });
+
+  function extractPlaylistId(value){
+    const match=String(value||"").match(UUID_RE);
+    return match?match[0]:"";
+  }
+
+  applyPlaylist.addEventListener("click",()=>{
+    const id=extractPlaylistId(playlistInput.value);
+    if(!id){playlistInput.focus();return}
+    playlistId=id;
+    localStorage.setItem("suno-playlist-id",playlistId);
+    settings.classList.remove("open");
+    loadPlaylist();
+  });
+
+  playlistInput.addEventListener("keydown",e=>{
+    if(e.key==="Enter")applyPlaylist.click();
+  });
+
+  window.addEventListener("beforeinstallprompt",e=>{
+    e.preventDefault();deferredPrompt=e;installBtn.classList.add("show");
+  });
+
+  installBtn.addEventListener("click",async()=>{
+    if(!deferredPrompt)return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt=null;
+    installBtn.classList.remove("show");
+  });
+
+  window.addEventListener("appinstalled",()=>{
+    deferredPrompt=null;installBtn.classList.remove("show");
+  });
+
+  if("serviceWorker" in navigator){
+    window.addEventListener("load",()=>navigator.serviceWorker.register("/service-worker.js").catch(()=>{}));
+  }
+
+  playlistInput.value=`https://suno.com/playlist/${playlistId}`;
+  loadPlaylist();
+})();
+</script>
+</body>
+</html>
