@@ -2,7 +2,7 @@
   "name": "alice-mini-player",
   "version": "2.0.0",
   "private": true,
-  "description": "Alice Mini Player PWA para playlists públicas do Suno.",
+  "description": "Alice Mini Player — PWA para playlists públicas do Suno.",
   "engines": {
     "node": ">=18"
   }
