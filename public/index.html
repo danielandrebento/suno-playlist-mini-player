@@ -337,6 +337,7 @@ button,input,a{
     stop.setAttribute("aria-label","Parar");
     stop.title="Parar";
     renderList();
+    updateMediaSessionMetadata();
     document.title=`${APP_NAME} · ${t.title}`;
   }
 
@@ -373,6 +374,37 @@ button,input,a{
     let i=current;
     while(i===current)i=Math.floor(Math.random()*tracks.length);
     return i;
+  }
+
+  function updateMediaSessionMetadata(){
+    if(!("mediaSession" in navigator) || !("MediaMetadata" in window) || !tracks.length)return;
+
+    const t=tracks[current];
+    const artwork=t.image_url
+      ? [{src:t.image_url}]
+      : [{src:"/icons/icon-512.png",sizes:"512x512",type:"image/png"}];
+
+    try{
+      navigator.mediaSession.metadata=new MediaMetadata({
+        title:t.title||APP_NAME,
+        artist:t.artist||"Suno",
+        album:APP_NAME,
+        artwork
+      });
+    }catch(e){}
+  }
+
+  function setupMediaSessionHandlers(){
+    if(!("mediaSession" in navigator))return;
+
+    const setHandler=(action,handler)=>{
+      try{navigator.mediaSession.setActionHandler(action,handler)}catch(e){}
+    };
+
+    // Play/Pause continua entregue ao player real do Suno.
+    // A Alice assume apenas faixa anterior e seguinte do sistema/Android.
+    setHandler("previoustrack",()=>loadTrack(current-1,true));
+    setHandler("nexttrack",()=>loadTrack(current+1,true));
   }
 
   async function loadPlaylist(){
@@ -525,6 +557,7 @@ button,input,a{
     });
   }
 
+  setupMediaSessionHandlers();
   playlistInput.value=`https://suno.com/playlist/${playlistId}`;
   refreshInstallButton();
   loadPlaylist();
