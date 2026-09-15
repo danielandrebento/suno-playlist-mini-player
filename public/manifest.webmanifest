@@ -1,12 +1,17 @@
 {
-  "name": "Suno Playlist Mini-Player",
-  "short_name": "Suno Player",
+  "name": "Alice Mini Player",
+  "short_name": "Alice Mini",
   "description": "Mini-player instalável para playlists públicas do Suno.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#111827",
-  "theme_color": "#111827",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#06173f",
+  "theme_color": "#06173f",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-192.png",

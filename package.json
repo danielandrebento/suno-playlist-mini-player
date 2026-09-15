@@ -1,8 +1,8 @@
 {
-  "name": "suno-playlist-mini-player",
-  "version": "3.0.0",
+  "name": "alice-mini-player",
+  "version": "2.0.0",
   "private": true,
-  "description": "Netlify + PWA mini-player compacto para playlists Suno.",
+  "description": "Alice Mini Player PWA para playlists públicas do Suno.",
   "engines": {
     "node": ">=18"
   }
