@@ -1,4 +1,4 @@
-const CACHE="alice-mini-player-v3";
+const CACHE="alice-mini-player-v4";
 const SHELL=[
   "/",
   "/index.html",

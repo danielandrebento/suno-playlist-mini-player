@@ -170,6 +170,24 @@ button,input{font:inherit}
 .status.show,.mode-tip.show{display:block}
 .status.error{color:#fecaca}.status a{color:#73c5f5}
 
+
+.window-drag-region{
+  position:fixed;
+  left:env(titlebar-area-x, 0px);
+  top:env(titlebar-area-y, 0px);
+  width:env(titlebar-area-width, 100%);
+  height:env(titlebar-area-height, 0px);
+  z-index:9999;
+  background:transparent;
+  user-select:none;
+  app-region:drag;
+  -webkit-app-region:drag;
+}
+button,input,a{
+  app-region:no-drag;
+  -webkit-app-region:no-drag;
+}
+
 @media(max-width:360px){
   body{padding:8px}.app{width:100%;margin:0 auto}
   .nav{grid-template-columns:32px 32px 32px 32px 1fr auto;gap:5px}
@@ -178,6 +196,7 @@ button,input{font:inherit}
 </style>
 </head>
 <body>
+<div class="window-drag-region" id="windowDragRegion" aria-hidden="true"></div>
 <main class="app">
   <div class="toolbar">
     <div class="app-brand" aria-label="Alice Mini Player">
@@ -410,7 +429,19 @@ button,input{font:inherit}
 
   settingsBtn.addEventListener("click",()=>{
     settings.classList.toggle("open");
-    playlistInput.value=`https://suno.com/playlist/${playlistId}`;
+  
+  if("windowControlsOverlay" in navigator){
+    const syncWindowControlsOverlay=()=>{
+      document.documentElement.classList.toggle(
+        "window-controls-overlay-visible",
+        Boolean(navigator.windowControlsOverlay.visible)
+      );
+    };
+    syncWindowControlsOverlay();
+    navigator.windowControlsOverlay.addEventListener("geometrychange",syncWindowControlsOverlay);
+  }
+
+  playlistInput.value=`https://suno.com/playlist/${playlistId}`;
     if(settings.classList.contains("open"))playlistInput.focus();
   });
 
