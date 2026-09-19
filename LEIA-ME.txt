@@ -3,19 +3,60 @@ SUNO PLAYLIST MINI-PLAYER — NETLIFY + PWA
 OBJETIVO
 - Não exige executar servidor no computador.
 - O frontend fica público no Netlify.
-- A Netlify Function consulta a playlist pública do Suno.
+- A Netlify Function consulta playlists públicas do Suno.
 - Cada música é reproduzida pelo embed oficial do Suno.
 - A aplicação pode ser instalada como PWA em Windows e Android.
 
-PLAYLIST PREDEFINIDA
+PERFIS DE PLAYLIST
+O player suporta agora perfis por URL.
+
+Perfil atual:
+  https://aliceminiplayer.netlify.app/?perfil=daniel
+
+A raiz do site continua a funcionar:
+  https://aliceminiplayer.netlify.app/
+
+Se não existir ?perfil= na URL, o player abre o último perfil utilizado nesse dispositivo.
+Num dispositivo novo, abre o perfil definido como "default" em public/profiles.json.
+
+CONFIGURAR OUTRO PERFIL
+Edita public/profiles.json e acrescenta uma entrada. Exemplo:
+
+{
+  "default": "daniel",
+  "profiles": {
+    "daniel": {
+      "name": "Daniel",
+      "playlist_id": "e88dd6af-edc2-49b4-94ba-d726c879540d"
+    },
+    "ana": {
+      "name": "Ana",
+      "playlist_id": "COLOCAR_AQUI_O_ID_DA_PLAYLIST_DA_ANA"
+    }
+  }
+}
+
+Depois, o link da Ana seria:
+  https://aliceminiplayer.netlify.app/?perfil=ana
+
+Não é necessário duplicar o site nem o código.
+Cada perfil guarda separadamente, no próprio dispositivo, a playlist escolhida no botão "Playlist" e a última faixa selecionada.
+
+Também existe um modo de partilha direta, sem criar perfil:
+  https://aliceminiplayer.netlify.app/?playlist=ID_DA_PLAYLIST
+
+PLAYLIST PREDEFINIDA DO PERFIL DANIEL
 https://suno.com/playlist/e88dd6af-edc2-49b4-94ba-d726c879540d
 
-Também é possível mudar a playlist pelo botão "Playlist".
-A escolha fica guardada no dispositivo.
+BOTÕES ANTERIOR/SEGUINTE DO SISTEMA
+Foi acrescentado suporte à Media Session API para que, quando o browser/SO encaminha os comandos para a página, os controlos Anterior e Seguinte da notificação/ecrã bloqueado mudem efetivamente de faixa.
+
+Nota técnica: o áudio continua a tocar dentro de um iframe do Suno. O Suno e o browser podem continuar a impor limitações aos controlos multimédia do sistema, sobretudo Play/Pause e deteção do fim da faixa.
 
 ESTRUTURA
 public/
   index.html
+  profiles.json
   manifest.webmanifest
   service-worker.js
   icons/
@@ -25,33 +66,31 @@ netlify.toml
 package.json
 
 PUBLICAR NO NETLIFY — RECOMENDADO
-1. Cria um repositório GitHub/GitLab com estes ficheiros.
-2. No Netlify, cria um novo site a partir desse repositório.
-3. O netlify.toml já define:
-   - pasta pública: public
-   - Functions: netlify/functions
-4. Não são necessárias variáveis de ambiente.
-5. Publica.
+1. Substitui os ficheiros do repositório pelos desta versão.
+2. Faz commit/push para o GitHub.
+3. O Netlify deverá iniciar automaticamente um novo deploy.
+4. Testa primeiro:
+   https://aliceminiplayer.netlify.app/?perfil=daniel
+5. No Android, se a PWA já estiver instalada, fecha-a completamente e volta a abrir. O service worker foi atualizado para v7.
 
-Também podes usar a Netlify CLI:
-  npm install -g netlify-cli
-  netlify login
-  netlify deploy
-  netlify deploy --prod
+O netlify.toml já define:
+- pasta pública: public
+- Functions: netlify/functions
+
+Não são necessárias variáveis de ambiente.
 
 IMPORTANTE
 - O site precisa de HTTPS para instalação PWA fora de localhost. O Netlify fornece HTTPS.
 - A Function é necessária; publicar só a pasta public não chega.
 - Não é necessário qualquer login ou API key do Suno nesta versão.
-- O player usa apenas dados públicos da playlist.
+- O player usa apenas dados públicos das playlists.
 
 LIMITAÇÃO DO EMBED SUNO
 O áudio toca dentro de um iframe de suno.com.
-Por segurança do browser, esta aplicação não recebe o evento "a música terminou".
+Por segurança do browser, esta aplicação não recebe de forma fiável o evento "a música terminou".
 Por isso:
-- Anterior/Seguinte funcionam;
+- Anterior/Seguinte dentro do player funcionam;
 - seleção de faixas funciona;
-- Aleatório altera o comportamento do botão Seguinte;
-- Repetir reinicia a faixa quando usas Seguinte;
-- passagem automática para a próxima faixa e repeat automático ao fim da música
-  não podem ser implementados de forma fiável apenas com o embed atual do Suno.
+- Aleatório altera a faixa;
+- os comandos Media Session Anterior/Seguinte são tratados quando o browser os entrega à página;
+- passagem automática para a próxima faixa ao fim da música continua sem poder ser garantida apenas com o embed atual do Suno.

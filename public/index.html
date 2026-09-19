@@ -264,10 +264,13 @@ button,input,a{
 <script>
 (() => {
   const APP_NAME="Alice Mini Player";
-  const DEFAULT_PLAYLIST_ID="e88dd6af-edc2-49b4-94ba-d726c879540d";
+  const FALLBACK_DEFAULT_PROFILE="daniel";
+  const FALLBACK_DEFAULT_PLAYLIST_ID="e88dd6af-edc2-49b4-94ba-d726c879540d";
   const STORAGE_PLAYLIST="alice-mini-player-playlist-id";
   const STORAGE_TRACK="alice-mini-player-track-index";
+  const STORAGE_LAST_PROFILE="alice-mini-player-last-profile";
   const UUID_RE=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  const PROFILE_RE=/^[a-z0-9_-]{1,64}$/i;
 
   const embedShell=document.querySelector(".embed-shell"),
         embedContainer=document.getElementById("embedContainer"),
@@ -288,9 +291,36 @@ button,input,a{
         applyPlaylist=document.getElementById("applyPlaylist"),
         installBtn=document.getElementById("installBtn");
 
-  let playlistId=localStorage.getItem(STORAGE_PLAYLIST)||localStorage.getItem("suno-playlist-id")||DEFAULT_PLAYLIST_ID;
-  let tracks=[],current=Number(localStorage.getItem(STORAGE_TRACK)||0),deferredPrompt=null,stopped=false,sunoPlaying=false,embedRenderToken=0;
+  let activeProfile="";
+  let profileName="";
+  let profileDefaultPlaylistId=FALLBACK_DEFAULT_PLAYLIST_ID;
+  let playlistId=FALLBACK_DEFAULT_PLAYLIST_ID;
+  let tracks=[],current=0,deferredPrompt=null,stopped=false,sunoPlaying=false,embedRenderToken=0;
   let reloadedForUpdate=false;
+
+  function profileStorageKey(base){
+    return activeProfile?`${base}:${activeProfile}`:base;
+  }
+
+  function readProfileStorage(base){
+    const scoped=localStorage.getItem(profileStorageKey(base));
+    if(scoped!==null)return scoped;
+
+    // Migra silenciosamente os valores da versão antiga apenas para o perfil Daniel.
+    if(activeProfile==="daniel"){
+      const legacy=localStorage.getItem(base);
+      if(legacy!==null)return legacy;
+      if(base===STORAGE_PLAYLIST){
+        const veryOld=localStorage.getItem("suno-playlist-id");
+        if(veryOld!==null)return veryOld;
+      }
+    }
+    return null;
+  }
+
+  function writeProfileStorage(base,value){
+    localStorage.setItem(profileStorageKey(base),String(value));
+  }
 
   const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -315,6 +345,34 @@ button,input,a{
     nativePlayCover.classList.toggle("is-playing",sunoPlaying);
   }
 
+  function updateMediaSession(){
+    if(!("mediaSession" in navigator)||!("MediaMetadata" in window)||!tracks.length)return;
+    const t=tracks[current];
+    const artwork=t.image_url?[{src:t.image_url}]:[];
+    try{
+      navigator.mediaSession.metadata=new MediaMetadata({
+        title:t.title||"Sem título",
+        artist:t.artist||profileName||"",
+        album:APP_NAME,
+        artwork
+      });
+    }catch(e){}
+  }
+
+  function setupMediaSessionActions(){
+    if(!("mediaSession" in navigator))return;
+    const set=(action,handler)=>{
+      try{navigator.mediaSession.setActionHandler(action,handler)}catch(e){}
+    };
+
+    // O áudio continua dentro do embed oficial do Suno. Estes dois handlers
+    // fazem com que os botões Anterior/Seguinte expostos pelo browser/SO
+    // mudem realmente de faixa no Alice Mini Player.
+    set("previoustrack",()=>loadTrack(current-1,true));
+    set("nexttrack",()=>loadTrack(current+1,true));
+    set("stop",()=>stopCurrent());
+  }
+
   function renderList(){
     list.innerHTML=tracks.map((t,i)=>`
       <button class="track ${i===current?"active":""}" type="button" data-i="${i}">
@@ -332,8 +390,8 @@ button,input,a{
     stopped=false;
     sunoPlaying=Boolean(autoplay);
     counter.textContent=`${current+1} / ${tracks.length}`;
-    localStorage.setItem(STORAGE_PLAYLIST,playlistId);
-    localStorage.setItem(STORAGE_TRACK,String(current));
+    writeProfileStorage(STORAGE_PLAYLIST,playlistId);
+    writeProfileStorage(STORAGE_TRACK,String(current));
 
     // Elimina apenas carregamentos pendentes anteriores.
     // O iframe ativo continua visível até o novo estar pronto.
@@ -384,6 +442,7 @@ button,input,a{
     stop.title="Parar";
     renderList();
     document.title=`${APP_NAME} · ${t.title}`;
+    updateMediaSession();
   }
 
   function stopCurrent(){
@@ -503,8 +562,8 @@ button,input,a{
     if(!id){playlistInput.focus();return}
     playlistId=id;
     current=0;
-    localStorage.setItem(STORAGE_PLAYLIST,playlistId);
-    localStorage.setItem(STORAGE_TRACK,"0");
+    writeProfileStorage(STORAGE_PLAYLIST,playlistId);
+    writeProfileStorage(STORAGE_TRACK,"0");
     settings.classList.remove("open");
     loadPlaylist();
   });
@@ -573,9 +632,68 @@ button,input,a{
     });
   }
 
-  playlistInput.value=`https://suno.com/playlist/${playlistId}`;
-  refreshInstallButton();
-  loadPlaylist();
+  async function resolveProfile(){
+    const params=new URLSearchParams(window.location.search);
+    const directPlaylist=extractPlaylistId(params.get("playlist")||params.get("id")||"");
+    let config={default:FALLBACK_DEFAULT_PROFILE,profiles:{
+      [FALLBACK_DEFAULT_PROFILE]:{name:"Daniel",playlist_id:FALLBACK_DEFAULT_PLAYLIST_ID}
+    }};
+
+    try{
+      const response=await fetch("/profiles.json",{cache:"no-store"});
+      if(response.ok){
+        const loaded=await response.json();
+        if(loaded&&loaded.profiles)config=loaded;
+      }
+    }catch(e){}
+
+    if(directPlaylist){
+      activeProfile="direct";
+      profileName="Playlist partilhada";
+      profileDefaultPlaylistId=directPlaylist;
+      playlistId=directPlaylist;
+      current=0;
+      return;
+    }
+
+    const requestedRaw=params.get("perfil")||params.get("profile")||"";
+    const remembered=localStorage.getItem(STORAGE_LAST_PROFILE)||"";
+    const requested=(requestedRaw||remembered||config.default||FALLBACK_DEFAULT_PROFILE).toLowerCase();
+
+    if(!PROFILE_RE.test(requested)||!config.profiles||!config.profiles[requested]){
+      throw new Error(`O perfil "${requested}" não existe neste player.`);
+    }
+
+    const profile=config.profiles[requested]||{};
+    const defaultId=extractPlaylistId(profile.playlist_id||profile.playlist||"");
+    if(!defaultId)throw new Error(`O perfil "${requested}" não tem uma playlist válida.`);
+
+    activeProfile=requested;
+    profileName=String(profile.name||requested);
+    profileDefaultPlaylistId=defaultId;
+    localStorage.setItem(STORAGE_LAST_PROFILE,activeProfile);
+
+    const storedId=extractPlaylistId(readProfileStorage(STORAGE_PLAYLIST)||"");
+    playlistId=storedId||profileDefaultPlaylistId;
+
+    const storedTrack=Number(readProfileStorage(STORAGE_TRACK)||0);
+    current=Number.isInteger(storedTrack)&&storedTrack>=0?storedTrack:0;
+  }
+
+  async function bootstrap(){
+    refreshInstallButton();
+    setupMediaSessionActions();
+    try{
+      await resolveProfile();
+      playlistInput.value=`https://suno.com/playlist/${playlistId}`;
+      await loadPlaylist();
+    }catch(err){
+      counter.textContent="—";
+      showError(String(err.message||err));
+    }
+  }
+
+  bootstrap();
 })();
 </script>
 </body>

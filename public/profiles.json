@@ -1,0 +1,9 @@
+{
+  "default": "daniel",
+  "profiles": {
+    "daniel": {
+      "name": "Daniel",
+      "playlist_id": "e88dd6af-edc2-49b4-94ba-d726c879540d"
+    }
+  }
+}

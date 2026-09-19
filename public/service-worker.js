@@ -1,4 +1,4 @@
-const CACHE="alice-mini-player-v6";
+const CACHE="alice-mini-player-v7";
 const SHELL=[
   "/",
   "/index.html",
@@ -37,6 +37,14 @@ self.addEventListener("fetch",event=>{
 
   if(url.pathname.startsWith("/api/")||url.hostname.includes("suno.com"))return;
   if(url.origin!==self.location.origin)return;
+
+  if(url.pathname==="/profiles.json"){
+    event.respondWith(
+      fetch(event.request,{cache:"no-store"})
+        .catch(()=>caches.match(event.request))
+    );
+    return;
+  }
 
   if(event.request.mode==="navigate"){
     event.respondWith(
